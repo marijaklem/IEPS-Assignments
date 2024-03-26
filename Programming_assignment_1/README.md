@@ -22,9 +22,9 @@ Install psycopg2: `pip install psycopg2`
     1. Install DbVisualizer (with Java): https://www.dbvis.com/download/ 
     2. Odpreš DbVisualizer, izbereš "Create a Database Connection" in "Create a Connection". Na seznamu izbereš PostgreSQL.
     3. Polja Authentication:\
-    Database Userid: postgres
-    Password Source: From Database Password field
-    Database Password: SMRPO_skG
+    Database Userid: postgres\
+    Password Source: From Database Password field\
+    Database Password: SMRPO_skG\
     4. Klikneš Connect in povežeš se z bazo.
     5. Na levi se pod Databases pojavi "postgres". V Schemas -> crawldb dvojni klik na Tables (izbereš levo opcijo, mislim da piše da ti odpre object). Lahko vidiš vsa polja. Na "References" se ti izriše še povezava med tabelami.
     6. Podatke v posamezni tabeli lahk vidiš, če izbereš tabelo (npr. Tables -> site) in na vrhu izbereš "Data"
