@@ -9,7 +9,7 @@ Install psycopg2: `pip install psycopg2`
 
 1. Install PostgreSQL 16.2: https://www.enterprisedb.com/downloads/postgres-postgresql-downloads
     1. Izberi naj installa vse komponenteq
-    2. Nastavi geslo na: `SMRPO_skG"
+    2. Nastavi geslo na: "SMRPO_skG"
     3. Ko te vpraša, "Launch Stack Builder at exit?", daš klukico stran
 2. Odpreš pgAdmin 4
     1. Levo odpreš "Servers" in naj bi se pojavu "PostgreSQL 16"
