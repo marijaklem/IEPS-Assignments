@@ -1,11 +1,14 @@
 import time
+from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from selenium.webdriver.firefox.service import Service as FirefoxService
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from threading import Thread, Lock
 from queue import Queue
+from urllib import robotparser
+import psycopg2
 
 # Initial setup
 WEB_DRIVER_LOCATION = "./Programming_assignment_1/geckodriver.exe"
@@ -20,9 +23,11 @@ WEB_PAGE_ADDRESSES = [
 
 # Firefox setup
 firefox_options = FirefoxOptions()
-firefox_options.add_argument("--headless") # ce je zakomentirana odpira firefox za vsako
+# Uncomment the following line if you want to run headless
+firefox_options.add_argument("--headless")
 firefox_options.add_argument("user-agent=fri-wier-Skupina_G")
-firefox_options.binary_location = r'C:\Program Files\Mozilla Firefox\firefox.exe' # Spremeni glede na tvojo pot do firefox.exe
+# Update the binary location based on your Firefox installation path
+firefox_options.binary_location = r'C:\Program Files\Mozilla Firefox\firefox.exe'
 
 # Queue
 urlsToVisit = Queue()
@@ -30,9 +35,47 @@ for url in WEB_PAGE_ADDRESSES:
     urlsToVisit.put(url)
 visitedUrls = set()
 visitedUrlsLock = Lock()
+visited_urls_count = 0
 
 
-# Fetcha URL iz queue, dobi vsebina in najde linke na strani. Nato doda nove linke v queue
+# Robots.txt
+def isAllowedByRobots(url, userAgent="*"):
+    parsedUrl = urlparse(url)
+    robotsTxtUrl = f"{parsedUrl.scheme}://{parsedUrl.netloc}/robots.txt"
+
+    try:
+        rp = robotparser.RobotFileParser()
+        rp.set_url(robotsTxtUrl)
+        rp.read()
+        return rp.can_fetch(userAgent, url)
+    except Exception as e:
+        print(f"Error fetching robots.txt: {e}")
+        return True
+    
+
+# Get siteId
+def getSiteId(url):
+    domain = urlparse(url).netloc
+    print(domain)
+    with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM crawldb.site WHERE domain = %s", (domain,))
+            row = cur.fetchone()
+            if row:
+                return row[0]
+            else:
+                return None
+
+
+# Insert page information
+def insert_page_info(url, htmlContent, httpStatusCode, accessedTime, siteId):
+    with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+        with conn.cursor() as cur:
+            cur.execute("INSERT INTO crawldb.page (site_id, url, html_content, http_status_code, accessed_time) VALUES (%s, %s, %s, %s, %s)", (siteId, url, htmlContent, httpStatusCode, accessedTime))
+            conn.commit()
+
+
+# Fetch and parse URL
 def fetchAndParseUrl(queue, options):
     global visited_urls_count
     while not queue.empty():
@@ -41,6 +84,10 @@ def fetchAndParseUrl(queue, options):
             if currentUrl in visitedUrls:
                 continue
             visitedUrls.add(currentUrl)
+            
+            if not isAllowedByRobots(currentUrl):
+                print(f"URL {currentUrl} disallowed by robots.txt")
+                continue
 
             print(f"Visiting: {currentUrl}")
             service = FirefoxService(executable_path=WEB_DRIVER_LOCATION)
@@ -50,6 +97,12 @@ def fetchAndParseUrl(queue, options):
                 time.sleep(TIMEOUT)
                 pageLinks = driver.find_elements(By.TAG_NAME, "a")
 
+                siteId = getSiteId(currentUrl)
+                if siteId is None:
+                    print(f"Site ID not found for URL: {currentUrl}")
+                    driver.quit()
+                    continue
+
                 for link in pageLinks:
                     href = link.get_attribute("href")
                     if href and href.startswith("http"):
@@ -57,12 +110,19 @@ def fetchAndParseUrl(queue, options):
                         with visitedUrlsLock:
                             if absoluteUrl not in visitedUrls:
                                 queue.put(absoluteUrl)
-                        print("Link:" + link)
+                        print("Link:" + href)
+                
+                httpStatusCode = driver.execute_script("return document.readyState === 'complete' ? 200 : 400;")
+                accessedTime = datetime.now()
+                htmlContent = driver.page_source
+                insert_page_info(currentUrl, htmlContent, httpStatusCode, accessedTime, siteId)
+
+                visited_urls_count += 1
             except Exception as e:
                 print(f"Error visiting {currentUrl}: {e}")
             finally:
-                driver.close()
                 driver.quit()
+    print(f"Total URLs visited: {visited_urls_count}")
 
 
 def startCrawling(numOfWorkers):
