@@ -56,7 +56,6 @@ def isAllowedByRobots(url, userAgent="*"):
 # Get siteId
 def getSiteId(url):
     domain = urlparse(url).netloc
-    print(domain)
     with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT id FROM crawldb.site WHERE domain = %s", (domain,))
@@ -64,14 +63,18 @@ def getSiteId(url):
             if row:
                 return row[0]
             else:
-                return None
+                # Insert the site into the database
+                cur.execute("INSERT INTO crawldb.site (domain) VALUES (%s) RETURNING id", (domain,))
+                conn.commit()
+                new_site_id = cur.fetchone()[0]
+                return new_site_id
 
 
 # Insert page information
-def insert_page_info(url, htmlContent, httpStatusCode, accessedTime, siteId):
+def insertPageInfo(url, html_content, http_status_code, accessed_time, site_id):
     with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
         with conn.cursor() as cur:
-            cur.execute("INSERT INTO crawldb.page (site_id, url, html_content, http_status_code, accessed_time) VALUES (%s, %s, %s, %s, %s)", (siteId, url, htmlContent, httpStatusCode, accessedTime))
+            cur.execute("INSERT INTO crawldb.page (site_id, url, html_content, http_status_code, accessed_time) VALUES (%s, %s, %s, %s, %s)", (site_id, url, html_content, http_status_code, accessed_time))
             conn.commit()
 
 
@@ -85,44 +88,45 @@ def fetchAndParseUrl(queue, options):
                 continue
             visitedUrls.add(currentUrl)
             
-            if not isAllowedByRobots(currentUrl):
-                print(f"URL {currentUrl} disallowed by robots.txt")
+        if not isAllowedByRobots(currentUrl):
+            print(f"URL {currentUrl} disallowed by robots.txt")
+            continue
+
+        print(f"Visiting: {currentUrl}")
+        service = FirefoxService(executable_path=WEB_DRIVER_LOCATION)
+        driver = webdriver.Firefox(service=service, options=options)
+        try:
+            driver.get(currentUrl)
+            time.sleep(TIMEOUT)
+            pageLinks = driver.find_elements(By.TAG_NAME, "a")
+
+            siteId = getSiteId(currentUrl)
+            if siteId is None:
+                print(f"Site ID not found for URL: {currentUrl}")
+                driver.quit()
                 continue
 
-            print(f"Visiting: {currentUrl}")
-            service = FirefoxService(executable_path=WEB_DRIVER_LOCATION)
-            driver = webdriver.Firefox(service=service, options=options)
-            try:
-                driver.get(currentUrl)
-                time.sleep(TIMEOUT)
-                pageLinks = driver.find_elements(By.TAG_NAME, "a")
+            for link in pageLinks:
+                href = link.get_attribute("href")
+                if href and href.startswith("http"):
+                    absoluteUrl = urljoin(currentUrl, href)
+                    with visitedUrlsLock:
+                        if absoluteUrl not in visitedUrls:
+                            queue.put(absoluteUrl)
+                            print("Link:", href)
 
-                siteId = getSiteId(currentUrl)
-                if siteId is None:
-                    print(f"Site ID not found for URL: {currentUrl}")
-                    driver.quit()
-                    continue
+            httpStatusCode = driver.execute_script("return document.readyState === 'complete' ? 200 : 400;")
+            accessedTime = datetime.now()
+            htmlContent = driver.page_source
+            insertPageInfo(currentUrl, htmlContent, httpStatusCode, accessedTime, siteId)
 
-                for link in pageLinks:
-                    href = link.get_attribute("href")
-                    if href and href.startswith("http"):
-                        absoluteUrl = urljoin(currentUrl, href)
-                        with visitedUrlsLock:
-                            if absoluteUrl not in visitedUrls:
-                                queue.put(absoluteUrl)
-                        print("Link:" + href)
-                
-                httpStatusCode = driver.execute_script("return document.readyState === 'complete' ? 200 : 400;")
-                accessedTime = datetime.now()
-                htmlContent = driver.page_source
-                insert_page_info(currentUrl, htmlContent, httpStatusCode, accessedTime, siteId)
-
-                visited_urls_count += 1
-            except Exception as e:
-                print(f"Error visiting {currentUrl}: {e}")
-            finally:
-                driver.quit()
+            visited_urls_count += 1
+        except Exception as e:
+            print(f"Error visiting {currentUrl}: {e}")
+        finally:
+            driver.quit()
     print(f"Total URLs visited: {visited_urls_count}")
+
 
 
 def startCrawling(numOfWorkers):
