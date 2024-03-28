@@ -32,3 +32,10 @@ In PyCharm (IntelliJ):
 Add to `requirements.txt` -> numpy==1.26.0 (version) <br>
 Run `pip install -r requirements.txt`
 
+## DB
+
+- Download postegreSQL 16.2
+    https://www.postgresql.org/download/
+
+- Download Docker
+    https://www.docker.com/products/docker-desktop/
