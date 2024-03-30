@@ -114,6 +114,17 @@ def getSiteId(url):
                 new_site_id = cur.fetchone()[0]
                 return new_site_id
 
+# Get pageId
+def getPageId(url):
+    with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM crawldb.page WHERE url = %s", (url,))
+            row = cur.fetchone()
+            if row:
+                return row[0]
+            else:
+                print(f"URL {url} not found in the database.")
+                return None
 
 # Insert page information
 def insertPageInfo(url, html_content, http_status_code, accessed_time, site_id):
@@ -185,6 +196,19 @@ def fixIfError():
                     for row in rows:
                         cur.execute("UPDATE crawldb.page SET in_use = %s WHERE id = %s", (False, row[0]))
                 conn.commit()
+
+# Insert to link table
+def updateLink(from_page, to_page):
+    with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+        with lock:
+            with conn.cursor() as cur:
+                try:
+                    cur.execute("INSERT INTO crawldb.link (from_page, to_page) VALUES (%s, %s)", (from_page, to_page))
+                except psycopg2.IntegrityError:
+                    conn.rollback() # Če že obstaja
+                else:
+                    conn.commit()
+
 
 # Fetch and parse URL
 def fetchAndParseUrl(queue, options):
@@ -289,6 +313,9 @@ def fetchAndParseUrl(queue, options):
                         try:
                             #print("#INSERT", threading.current_thread().name)
                             insertPageInfo(absoluteUrl, None, None,  datetime.now(), None)
+                            toPageId = getPageId(absoluteUrl)
+                            fromPageId = urlRow[0]
+                            updateLink(fromPageId, toPageId)
                         except Exception as e:
                             print(f"Error inserting url ({absoluteUrl}): {e}", threading.current_thread().name)
 
