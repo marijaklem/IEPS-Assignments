@@ -12,6 +12,7 @@ from urllib import robotparser
 from urllib.error import URLError
 import psycopg2
 import requests
+import re
 
 # Initial setup
 # WEB_DRIVER_LOCATION = "geckodriver.exe"
@@ -305,6 +306,7 @@ def fetchAndParseUrl(queue, options):
 
                 for link in pageLinks:
                     href = link.get_attribute("href")
+                    onClick = link.get_attribute("onclick")
                     if href and href.startswith("http"):
                         absoluteUrl = urljoin(currentUrl, href)
                         #with visitedUrlsLock:
@@ -318,8 +320,18 @@ def fetchAndParseUrl(queue, options):
                             updateLink(fromPageId, toPageId)
                         except Exception as e:
                             print(f"Error inserting url ({absoluteUrl}): {e}", threading.current_thread().name)
-
-                                #print("Link:", href)
+                    
+                    if onClick:
+                        matches = re.findall(r"(?:window\.location\s*=\s*|document\.location\s*=\s*)['\"](.*?)['\"]", onClick)
+                        for match in matches:
+                            absoluteUrl = urljoin(currentUrl, match)
+                            try:
+                                insertPageInfo(absoluteUrl, None, None, datetime.now(), None)
+                                toPageId = getPageId(absoluteUrl)
+                                fromPageId = urlRow[0]
+                                updateLink(fromPageId, toPageId)
+                            except Exception as e:
+                                print(f"Error inserting url ({absoluteUrl}): {e}", threading.current_thread().name)
 
                 accessedTime = datetime.now()
                 htmlContent = driver.page_source
