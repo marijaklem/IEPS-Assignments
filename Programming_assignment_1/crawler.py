@@ -9,11 +9,13 @@ from urllib.parse import urljoin, urlparse
 from threading import Thread, Lock
 from queue import Queue
 from urllib import robotparser
+from urllib.error import URLError
 import psycopg2
 import requests
 
 # Initial setup
-WEB_DRIVER_LOCATION = "geckodriver.exe"
+# WEB_DRIVER_LOCATION = "geckodriver.exe"
+WEB_DRIVER_LOCATION = "./Programming_assignment_1/geckodriver.exe"
 TIMEOUT = 5
 NUM_OF_WORKERS = 4
 WEB_PAGE_ADDRESSES = [
@@ -53,9 +55,48 @@ def isAllowedByRobots(url, userAgent="*"):
         rp.set_url(robotsTxtUrl)
         rp.read()
         return rp.can_fetch(userAgent, url)
+    except URLError as e:  # Catch URLError for timeout
+        print(f"Timeout error occurred while fetching robots.txt for {url}: {e}")
+        return False
     except Exception as e:
         print(f"Error fetching robots.txt: {e}")
         return False
+
+# Fetch for robots_content for site
+def fetchAndStoreRobots(url):
+    parsedUrl = urlparse(url)
+    robotsTxtUrl = f"{parsedUrl.scheme}://{parsedUrl.netloc}/robots.txt"
+    try:
+        response = requests.get(robotsTxtUrl)
+        if response.status_code == 200:
+            robots_content = response.text
+            updateSiteRecord(url, robots_content=robots_content)
+    except Exception as e:
+        print(f"Error fetching robots.txt for {url}: {e}")
+
+# Fetch for sitemap_content for site
+def fetchAndStoreSitemap(url):
+    parsedUrl = urlparse(url)
+    sitemapUrl = f"{parsedUrl.scheme}://{parsedUrl.netloc}/sitemap.xml"
+    try:
+        response = requests.get(sitemapUrl)
+        if response.status_code == 200:
+            sitemap_content = response.text
+            updateSiteRecord(url, sitemap_content=sitemap_content)
+    except Exception as e:
+        print(f"Error fetching sitemap.xml for {url}: {e}")
+
+# Update Site
+def updateSiteRecord(url, **kwargs):
+    domain = urlparse(url).netloc
+    with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+        with conn.cursor() as cur:
+            set_clause = ", ".join([f"{column} = %s" for column in kwargs.keys()])
+            values = list(kwargs.values())
+            query = f"UPDATE crawldb.site SET {set_clause} WHERE domain = %s"
+            values.append(domain)
+            cur.execute(query, values)
+            conn.commit()
 
 # Get siteId
 def getSiteId(url):
@@ -171,97 +212,108 @@ def fetchAndParseUrl(queue, options):
         if not isAllowedByRobots(currentUrl):
             print(f"URL {currentUrl} disallowed by robots.txt")
             continue
-
-        request = requests.get(currentUrl)
-        print(request.headers['content-type'])
-
-        siteId = getSiteId(currentUrl)
-        if 'text/html' in request.headers['content-type']:
-            contentType = "HTML"
-        else:
-            contentType = 'BINARY'
-            print(request.headers['content-type'])
-            updatePageInfo(currentUrl, None, request.status_code, contentType, datetime.now(), siteId)
-            dataType = None
-
-            if 'application/pdf' in request.headers['content-type']:
-                dataType = 'PDF'
-            elif 'application/msword' in request.headers['content-type']:
-                dataType = 'DOC'
-            elif 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' in request.headers['content-type']:
-                dataType = 'DOCX'
-            elif 'application/vnd.ms-powerpoint' in request.headers['content-type']:
-                dataType = 'PPT'
-            elif 'application/vnd.openxmlformats-officedocument.presentationml.presentation' in request.headers['content-type']:
-                dataType = 'PPTX'
-            elif 'image' in request.headers['content-type']:
-                filename = parse_filename_from_url(urlRow[3])
-                content_type = filename.split('.')[-1] if '.' in filename else None
-                insertImageInfo(urlRow[3], urlRow[0], filename, content_type.lower(), datetime.now())
-                continue
-            else:
-                dataType = 'OTHER'
-            insertPageDataInfo(currentUrl, urlRow[0], dataType)
-            continue
-
-        if request.status_code != 200:
-            updatePageInfo(currentUrl, None, request.status_code, contentType, datetime.now(), siteId)
-            print(f"Request return invalid code", request.status_code)
-            continue
-
-        print(f"Visiting: {currentUrl}", threading.current_thread().name)
-        service = FirefoxService(executable_path=WEB_DRIVER_LOCATION)
-
-        driver = webdriver.Firefox(service=service, options=options)
+        
         try:
-            driver.get(currentUrl)
-            time.sleep(TIMEOUT)
-            pageLinks = driver.find_elements(By.TAG_NAME, "a")
-            imgLinks = driver.find_elements(By.TAG_NAME, "img")
-
-            for link in imgLinks:
-                src = link.get_attribute("src")
-                if src and src.startswith('http'):
-                    try:
-                        filename = parse_filename_from_url(src)
-                        content_type = filename.split('.')[-1] if '.' in filename else None
-                        insertImageInfo(src, urlRow[0], filename, content_type.lower(), datetime.now())
-                    except Exception as e:
-                        print(f"Error inserting url ({src}): {e}", threading.current_thread().name)
+            request = requests.get(currentUrl)
+            print(request.headers['content-type'])
 
             siteId = getSiteId(currentUrl)
-            if siteId is None:
-                print(f"Site ID not found for URL: {currentUrl}")
-                driver.quit()
+            fetchAndStoreRobots(currentUrl)
+            fetchAndStoreSitemap(currentUrl)
+            if 'text/html' in request.headers['content-type']:
+                contentType = "HTML"
+            else:
+                contentType = 'BINARY'
+                print(request.headers['content-type'])
+                updatePageInfo(currentUrl, None, request.status_code, contentType, datetime.now(), siteId)
+                dataType = None
+
+                if 'application/pdf' in request.headers['content-type']:
+                    dataType = 'PDF'
+                elif 'application/msword' in request.headers['content-type']:
+                    dataType = 'DOC'
+                elif 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' in request.headers['content-type']:
+                    dataType = 'DOCX'
+                elif 'application/vnd.ms-powerpoint' in request.headers['content-type']:
+                    dataType = 'PPT'
+                elif 'application/vnd.openxmlformats-officedocument.presentationml.presentation' in request.headers['content-type']:
+                    dataType = 'PPTX'
+                elif 'image' in request.headers['content-type']:
+                    filename = parse_filename_from_url(urlRow[3])
+                    content_type = filename.split('.')[-1] if '.' in filename else None
+                    insertImageInfo(urlRow[3], urlRow[0], filename, content_type.lower(), datetime.now())
+                    continue
+                else:
+                    dataType = 'OTHER'
+                insertPageDataInfo(currentUrl, urlRow[0], dataType)
                 continue
 
-            for link in pageLinks:
-                href = link.get_attribute("href")
-                if href and href.startswith("http"):
-                    absoluteUrl = urljoin(currentUrl, href)
-                    #with visitedUrlsLock:
-                    #    if absoluteUrl not in visitedUrls:
-                            #queue.put(absoluteUrl)
-                    try:
-                        #print("#INSERT", threading.current_thread().name)
-                        insertPageInfo(absoluteUrl, None, None,  datetime.now(), None)
-                    except Exception as e:
-                        print(f"Error inserting url ({absoluteUrl}): {e}", threading.current_thread().name)
+            if request.status_code != 200:
+                updatePageInfo(currentUrl, None, request.status_code, contentType, datetime.now(), siteId)
+                print(f"Request return invalid code", request.status_code)
+                continue
 
-                            #print("Link:", href)
+            print(f"Visiting: {currentUrl}", threading.current_thread().name)
+            service = FirefoxService(executable_path=WEB_DRIVER_LOCATION)
 
-            accessedTime = datetime.now()
-            htmlContent = driver.page_source
-            print("#UPDATE", threading.current_thread().name)
-            updatePageInfo(currentUrl, htmlContent, request.status_code, contentType, accessedTime, siteId)
+            driver = webdriver.Firefox(service=service, options=options)
+            try:
+                driver.get(currentUrl)
+                time.sleep(TIMEOUT)
+                pageLinks = driver.find_elements(By.TAG_NAME, "a")
+                imgLinks = driver.find_elements(By.TAG_NAME, "img")
 
-            visited_urls_count += 1
-        except Exception as e:
-            accessedTime = datetime.now()
-            updatePageInfo(currentUrl, None, 500, contentType, accessedTime, None)
-            print(f"Error visiting {currentUrl}: {e}")
-        finally:
-            driver.quit()
+                for link in imgLinks:
+                    src = link.get_attribute("src")
+                    if src and src.startswith('http'):
+                        try:
+                            filename = parse_filename_from_url(src)
+                            content_type = filename.split('.')[-1] if '.' in filename else None
+                            insertImageInfo(src, urlRow[0], filename, content_type.lower(), datetime.now())
+                        except Exception as e:
+                            print(f"Error inserting url ({src}): {e}", threading.current_thread().name)
+
+                siteId = getSiteId(currentUrl)
+                if siteId is None:
+                    print(f"Site ID not found for URL: {currentUrl}")
+                    driver.quit()
+                    continue
+
+                for link in pageLinks:
+                    href = link.get_attribute("href")
+                    if href and href.startswith("http"):
+                        absoluteUrl = urljoin(currentUrl, href)
+                        #with visitedUrlsLock:
+                        #    if absoluteUrl not in visitedUrls:
+                                #queue.put(absoluteUrl)
+                        try:
+                            #print("#INSERT", threading.current_thread().name)
+                            insertPageInfo(absoluteUrl, None, None,  datetime.now(), None)
+                        except Exception as e:
+                            print(f"Error inserting url ({absoluteUrl}): {e}", threading.current_thread().name)
+
+                                #print("Link:", href)
+
+                accessedTime = datetime.now()
+                htmlContent = driver.page_source
+                print("#UPDATE", threading.current_thread().name)
+                updatePageInfo(currentUrl, htmlContent, request.status_code, contentType, accessedTime, siteId)
+
+                visited_urls_count += 1
+            except Exception as e:
+                accessedTime = datetime.now()
+                updatePageInfo(currentUrl, None, 500, contentType, accessedTime, None)
+                print(f"Error visiting {currentUrl}: {e}")
+            finally:
+                driver.quit()
+        except requests.Timeout as e:
+            print(f"Timeout occurred while fetching URL: {currentUrl}, Retrying...")
+            fail_retries += 1
+            if fail_retries > 5:
+                print("Exceeded maximum retries. Closing thread.", threading.current_thread().name)
+                break
+            time.sleep(5)
+            continue
     print(f"Total URLs visited: {visited_urls_count}")
 
 
