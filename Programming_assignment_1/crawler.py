@@ -15,12 +15,10 @@ import requests
 # Initial setup
 WEB_DRIVER_LOCATION = "geckodriver.exe"
 TIMEOUT = 5
-NUM_OF_WORKERS = 1
+NUM_OF_WORKERS = 4
 WEB_PAGE_ADDRESSES = [
     "https://gov.si",
-    "https://www.stopbirokraciji.gov.si/fileadmin/user_upload/mju/Boljsi_predpisi/Real_in_izracun_ukrepi/POROCILO_ZOIPubA_S1.pdf",
     "https://e-prostor.gov.si",
-    "http://kds.si/",
     "https://evem.gov.si",
     "https://e-uprava.gov.si",
 ]
@@ -196,9 +194,15 @@ def fetchAndParseUrl(queue, options):
                 dataType = 'PPT'
             elif 'application/vnd.openxmlformats-officedocument.presentationml.presentation' in request.headers['content-type']:
                 dataType = 'PPTX'
+            elif 'image' in request.headers['content-type']:
+                filename = parse_filename_from_url(urlRow[3])
+                content_type = filename.split('.')[-1] if '.' in filename else None
+                insertImageInfo(urlRow[3], urlRow[0], filename, content_type.lower(), datetime.now())
+                continue
             else:
                 dataType = 'OTHER'
             insertPageDataInfo(currentUrl, urlRow[0], dataType)
+            continue
 
         if request.status_code != 200:
             updatePageInfo(currentUrl, None, request.status_code, contentType, datetime.now(), siteId)
@@ -219,8 +223,9 @@ def fetchAndParseUrl(queue, options):
                 src = link.get_attribute("src")
                 if src and src.startswith('http'):
                     try:
-                        print(src)
-                        insertImageInfo(src, urlRow[0], parse_filename_from_url(src), None, datetime.now())
+                        filename = parse_filename_from_url(src)
+                        content_type = filename.split('.')[-1] if '.' in filename else None
+                        insertImageInfo(src, urlRow[0], filename, content_type.lower(), datetime.now())
                     except Exception as e:
                         print(f"Error inserting url ({src}): {e}", threading.current_thread().name)
 
@@ -281,16 +286,17 @@ def drop_rows_from_table(table_name):
 
 
 drop_rows_from_table("crawldb.image")
+drop_rows_from_table("crawldb.page_data")
 drop_rows_from_table("crawldb.page")
 drop_rows_from_table("crawldb.site")
 
 
 def insert():
-    #insertPageInfo(WEB_PAGE_ADDRESSES[0], None, None, datetime.now(), None)
+    insertPageInfo(WEB_PAGE_ADDRESSES[0], None, None, datetime.now(), None)
     insertPageInfo(WEB_PAGE_ADDRESSES[1], None, None, datetime.now(), None)
     insertPageInfo(WEB_PAGE_ADDRESSES[2], None, None, datetime.now(), None)
     insertPageInfo(WEB_PAGE_ADDRESSES[3], None, None, datetime.now(), None)
-    insertPageInfo(WEB_PAGE_ADDRESSES[4], None, None, datetime.now(), None)
+    #insertPageInfo(WEB_PAGE_ADDRESSES[4], None, None, datetime.now(), None)
 
 
 insert()
