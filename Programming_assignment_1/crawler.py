@@ -18,10 +18,11 @@ TIMEOUT = 5
 NUM_OF_WORKERS = 1
 WEB_PAGE_ADDRESSES = [
     "https://gov.si",
+    "https://www.stopbirokraciji.gov.si/fileadmin/user_upload/mju/Boljsi_predpisi/Real_in_izracun_ukrepi/POROCILO_ZOIPubA_S1.pdf",
+    "https://e-prostor.gov.si",
+    "http://kds.si/",
     "https://evem.gov.si",
     "https://e-uprava.gov.si",
-    "https://e-prostor.gov.si",
-    "http://kds.si/"
 ]
 
 # Firefox setup
@@ -31,6 +32,7 @@ firefox_options.add_argument("--headless")
 firefox_options.add_argument("user-agent=fri-wier-Skupina_G")
 # Update the binary location based on your Firefox installation path
 firefox_options.binary_location = r'C:\Program Files\Mozilla Firefox\firefox.exe'
+firefox_options.accept_insecure_certs = True
 
 # Queue
 urlsToVisit = Queue()
@@ -76,11 +78,35 @@ def getSiteId(url):
 
 # Insert page information
 def insertPageInfo(url, html_content, http_status_code, accessed_time, site_id):
-    with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
-        with conn.cursor() as cur:
-            cur.execute("INSERT INTO crawldb.page (site_id, url, html_content, http_status_code, accessed_time, page_type_code, in_use) VALUES (%s, %s, %s, %s, %s, %s, %s)", (site_id, url, html_content, http_status_code, accessed_time, 'FRONTIER', False))
-            conn.commit()
+    try:
+        with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+            with conn.cursor() as cur:
+                cur.execute("INSERT INTO crawldb.page (site_id, url, html_content, http_status_code, accessed_time, page_type_code, in_use) VALUES (%s, %s, %s, %s, %s, %s, %s)", (site_id, url, html_content, http_status_code, accessed_time, 'FRONTIER', False))
+                conn.commit()
+    except Exception as e:
+        return
 
+
+#
+def insertImageInfo(src, page_id, filename, content_type, accessed_time):
+    try:
+        with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+            with conn.cursor() as cur:
+                cur.execute("INSERT INTO crawldb.image (page_id, filename, content_type, data, accessed_time) VALUES (%s, %s, %s, %s, %s)", (page_id, filename, content_type, src, accessed_time))
+                conn.commit()
+    except Exception as e:
+        return
+
+
+def insertPageDataInfo(src, page_id, data_type_code):
+    print("Inser page data", src, page_id, data_type_code)
+    try:
+        with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+            with conn.cursor() as cur:
+                cur.execute("INSERT INTO crawldb.page_data (page_id, data_type_code, data) VALUES (%s, %s, %s)", (page_id, data_type_code, src))
+                conn.commit()
+    except Exception as e:
+        return
 
 def updatePageInfo(url, html_content, http_status_code, content_type, accessed_time, site_id):
     with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
@@ -100,6 +126,13 @@ def getUrlFrontier():
                     cur.execute("UPDATE crawldb.page SET in_use = %s WHERE id = %s", (True, row[0]))
                 conn.commit()
                 return row
+
+# For image url-s parse file name from url
+def parse_filename_from_url(url):
+    parsed_url = urlparse(url)
+    path = parsed_url.path
+    filename = path.split('/')[-1]
+    return filename
 
 # Fix db when urls in_use True but is not finnished
 def fixIfError():
@@ -142,17 +175,32 @@ def fetchAndParseUrl(queue, options):
             continue
 
         request = requests.get(currentUrl)
-        print(request.status_code)
-        print(request.headers)
         print(request.headers['content-type'])
 
-        contentType = None
-        if 'text/html' in request.headers['content-type'] :
-            print("HTML")
+        siteId = getSiteId(currentUrl)
+        if 'text/html' in request.headers['content-type']:
             contentType = "HTML"
+        else:
+            contentType = 'BINARY'
+            print(request.headers['content-type'])
+            updatePageInfo(currentUrl, None, request.status_code, contentType, datetime.now(), siteId)
+            dataType = None
+
+            if 'application/pdf' in request.headers['content-type']:
+                dataType = 'PDF'
+            elif 'application/msword' in request.headers['content-type']:
+                dataType = 'DOC'
+            elif 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' in request.headers['content-type']:
+                dataType = 'DOCX'
+            elif 'application/vnd.ms-powerpoint' in request.headers['content-type']:
+                dataType = 'PPT'
+            elif 'application/vnd.openxmlformats-officedocument.presentationml.presentation' in request.headers['content-type']:
+                dataType = 'PPTX'
+            else:
+                dataType = 'OTHER'
+            insertPageDataInfo(currentUrl, urlRow[0], dataType)
 
         if request.status_code != 200:
-            siteId = getSiteId(currentUrl)
             updatePageInfo(currentUrl, None, request.status_code, contentType, datetime.now(), siteId)
             print(f"Request return invalid code", request.status_code)
             continue
@@ -165,6 +213,16 @@ def fetchAndParseUrl(queue, options):
             driver.get(currentUrl)
             time.sleep(TIMEOUT)
             pageLinks = driver.find_elements(By.TAG_NAME, "a")
+            imgLinks = driver.find_elements(By.TAG_NAME, "img")
+
+            for link in imgLinks:
+                src = link.get_attribute("src")
+                if src and src.startswith('http'):
+                    try:
+                        print(src)
+                        insertImageInfo(src, urlRow[0], parse_filename_from_url(src), None, datetime.now())
+                    except Exception as e:
+                        print(f"Error inserting url ({src}): {e}", threading.current_thread().name)
 
             siteId = getSiteId(currentUrl)
             if siteId is None:
@@ -189,9 +247,8 @@ def fetchAndParseUrl(queue, options):
 
             accessedTime = datetime.now()
             htmlContent = driver.page_source
-            print(driver.execute_script(""))
             print("#UPDATE", threading.current_thread().name)
-            updatePageInfo(currentUrl, htmlContent, request.status_code, contentType,accessedTime, siteId)
+            updatePageInfo(currentUrl, htmlContent, request.status_code, contentType, accessedTime, siteId)
 
             visited_urls_count += 1
         except Exception as e:
@@ -223,11 +280,13 @@ def drop_rows_from_table(table_name):
             conn.commit()
 
 
+drop_rows_from_table("crawldb.image")
 drop_rows_from_table("crawldb.page")
 drop_rows_from_table("crawldb.site")
 
+
 def insert():
-    insertPageInfo(WEB_PAGE_ADDRESSES[0], None, None, datetime.now(), None)
+    #insertPageInfo(WEB_PAGE_ADDRESSES[0], None, None, datetime.now(), None)
     insertPageInfo(WEB_PAGE_ADDRESSES[1], None, None, datetime.now(), None)
     insertPageInfo(WEB_PAGE_ADDRESSES[2], None, None, datetime.now(), None)
     insertPageInfo(WEB_PAGE_ADDRESSES[3], None, None, datetime.now(), None)

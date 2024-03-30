@@ -88,7 +88,8 @@ INSERT INTO crawldb.data_type VALUES
 	('DOC'),
 	('DOCX'),
 	('PPT'),
-	('PPTX');
+	('PPTX'),
+	('OTHER');
 
 INSERT INTO crawldb.page_type VALUES 
 	('HTML'),
