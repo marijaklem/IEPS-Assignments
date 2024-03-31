@@ -2,8 +2,9 @@
 
 ## Startup
 
-Install Selenium: `pip install selenium`
-Install psycopg2: `pip install psycopg2`
+Install Selenium: `pip install selenium` /
+Install psycopg2: `pip install psycopg2` /
+Install requests: `pip install requests`
 
 ## Instalacija lokalne baze
 
