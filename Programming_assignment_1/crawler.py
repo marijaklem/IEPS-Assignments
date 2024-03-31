@@ -221,13 +221,20 @@ def updateLinkIsSearched(to_page, is_searched):
                 else:
                     conn.commit()
 
+htmlPages = 0
+htmlPagesLock = Lock()
 
 # Fetch and parse URL
 def fetchAndParseUrl(queue, options):
     global visited_urls_count
     fail_retries = 0
+    global htmlPages
 
     while True: #not queue.empty():
+
+        if htmlPages >= 10:
+            print(f"{threading.current_thread().name} konec!")
+            break
         urlRow = getUrlFrontier()
         if urlRow is None:
             print("NO MORE AVAILABLE URLS", threading.current_thread().name)
@@ -258,6 +265,8 @@ def fetchAndParseUrl(queue, options):
             fetchAndStoreSitemap(currentUrl)
             if 'text/html' in request.headers['content-type']:
                 contentType = "HTML"
+                with htmlPagesLock:
+                    htmlPages += 1
             else:
                 contentType = 'BINARY'
                 print(request.headers['content-type'])
