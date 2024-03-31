@@ -232,7 +232,7 @@ def fetchAndParseUrl(queue, options):
 
     while True: #not queue.empty():
 
-        if htmlPages >= 10:
+        if htmlPages >= 50000:
             print(f"{threading.current_thread().name} konec!")
             break
         urlRow = getUrlFrontier()
