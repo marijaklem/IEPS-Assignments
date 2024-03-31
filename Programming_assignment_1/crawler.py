@@ -129,13 +129,13 @@ def getPageId(url):
 
 # Insert page information
 def insertPageInfo(url, html_content, http_status_code, accessed_time, site_id):
-    try:
-        with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
-            with conn.cursor() as cur:
-                cur.execute("INSERT INTO crawldb.page (site_id, url, html_content, http_status_code, accessed_time, page_type_code, in_use) VALUES (%s, %s, %s, %s, %s, %s, %s)", (site_id, url, html_content, http_status_code, accessed_time, 'FRONTIER', False))
-                conn.commit()
-    except Exception as e:
-        return
+    #try:
+    with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+        with conn.cursor() as cur:
+            cur.execute("INSERT INTO crawldb.page (site_id, url, html_content, http_status_code, accessed_time, page_type_code, in_use) VALUES (%s, %s, %s, %s, %s, %s, %s)", (site_id, url, html_content, http_status_code, accessed_time, 'FRONTIER', False))
+            conn.commit()
+    #except Exception as e:
+    #    return
 
 
 #
@@ -199,14 +199,25 @@ def fixIfError():
                 conn.commit()
 
 # Insert to link table
-def updateLink(from_page, to_page):
+def updateLink(from_page, to_page, is_searched):
     with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
         with lock:
             with conn.cursor() as cur:
                 try:
-                    cur.execute("INSERT INTO crawldb.link (from_page, to_page) VALUES (%s, %s)", (from_page, to_page))
+                    cur.execute("INSERT INTO crawldb.link (from_page, to_page, is_searched) VALUES (%s, %s, %s)", (from_page, to_page, is_searched))
                 except psycopg2.IntegrityError:
                     conn.rollback() # Če že obstaja
+                else:
+                    conn.commit()
+
+def updateLinkIsSearched(to_page, is_searched):
+    with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+        with lock:
+            with conn.cursor() as cur:
+                try:
+                    cur.execute('UPDATE crawldb.link SET is_searched = %s WHERE to_page = %s', (is_searched, to_page))
+                except psycopg2.IntegrityError:
+                    conn.rollback()
                 else:
                     conn.commit()
 
@@ -305,38 +316,44 @@ def fetchAndParseUrl(queue, options):
                     continue
 
                 for link in pageLinks:
-                    href = link.get_attribute("href")
-                    onClick = link.get_attribute("onclick")
-                    if href and href.startswith("http"):
-                        absoluteUrl = urljoin(currentUrl, href)
-                        #with visitedUrlsLock:
-                        #    if absoluteUrl not in visitedUrls:
-                                #queue.put(absoluteUrl)
-                        try:
-                            #print("#INSERT", threading.current_thread().name)
-                            insertPageInfo(absoluteUrl, None, None,  datetime.now(), None)
-                            toPageId = getPageId(absoluteUrl)
-                            fromPageId = urlRow[0]
-                            updateLink(fromPageId, toPageId)
-                        except Exception as e:
-                            print(f"Error inserting url ({absoluteUrl}): {e}", threading.current_thread().name)
-                    
-                    if onClick:
-                        matches = re.findall(r"(?:window\.location\s*=\s*|document\.location\s*=\s*)['\"](.*?)['\"]", onClick)
-                        for match in matches:
-                            absoluteUrl = urljoin(currentUrl, match)
+                    try:
+                        href = link.get_attribute("href")
+                        onClick = link.get_attribute("onclick")
+                        if href and href.startswith("http"):
+                            absoluteUrl = urljoin(currentUrl, href)
+
                             try:
-                                insertPageInfo(absoluteUrl, None, None, datetime.now(), None)
+                                insertPageInfo(absoluteUrl, None, None,  datetime.now(), None)
                                 toPageId = getPageId(absoluteUrl)
                                 fromPageId = urlRow[0]
-                                updateLink(fromPageId, toPageId)
+                                updateLink(fromPageId, toPageId, False)
                             except Exception as e:
-                                print(f"Error inserting url ({absoluteUrl}): {e}", threading.current_thread().name)
+                                continue
+                                #print(f"Error inserting url ({absoluteUrl}): {e}", threading.current_thread().name)
+
+                        if onClick:
+                            matches = re.findall(r"(?:window\.location\s*=\s*|document\.location\s*=\s*)['\"](.*?)['\"]", onClick)
+                            for match in matches:
+                                absoluteUrl = urljoin(currentUrl, match)
+                                try:
+                                    print("#INSERT(onclick): ", absoluteUrl, threading.current_thread().name)
+                                    insertPageInfo(absoluteUrl, None, None, datetime.now(), None)
+                                    toPageId = getPageId(absoluteUrl)
+                                    fromPageId = urlRow[0]
+                                    updateLink(fromPageId, toPageId, False)
+                                except Exception as e:
+                                    continue
+                                    #print(f"Error inserting url ({absoluteUrl}): {e}", threading.current_thread().name)
+
+                    except Exception as e:
+                        print("StaleElementReferenceExceptionStaleElementReferenceExceptionStaleElementReferenceException")
+                        continue
 
                 accessedTime = datetime.now()
                 htmlContent = driver.page_source
                 print("#UPDATE", threading.current_thread().name)
                 updatePageInfo(currentUrl, htmlContent, request.status_code, contentType, accessedTime, siteId)
+                updateLinkIsSearched(urlRow[0], True)
 
                 visited_urls_count += 1
             except Exception as e:
@@ -348,7 +365,7 @@ def fetchAndParseUrl(queue, options):
         except requests.Timeout as e:
             print(f"Timeout occurred while fetching URL: {currentUrl}, Retrying...")
             fail_retries += 1
-            if fail_retries > 5:
+            if fail_retries > 10:
                 print("Exceeded maximum retries. Closing thread.", threading.current_thread().name)
                 break
             time.sleep(5)
@@ -376,10 +393,12 @@ def drop_rows_from_table(table_name):
             conn.commit()
 
 
-drop_rows_from_table("crawldb.image")
-drop_rows_from_table("crawldb.page_data")
-drop_rows_from_table("crawldb.page")
-drop_rows_from_table("crawldb.site")
+def dropTablesStart():
+    drop_rows_from_table("crawldb.link")
+    drop_rows_from_table("crawldb.image")
+    drop_rows_from_table("crawldb.page_data")
+    drop_rows_from_table("crawldb.page")
+    drop_rows_from_table("crawldb.site")
 
 
 def insert():
@@ -390,6 +409,7 @@ def insert():
     #insertPageInfo(WEB_PAGE_ADDRESSES[4], None, None, datetime.now(), None)
 
 
+dropTablesStart()
 insert()
 
 # If error while working set not finished urls: in_use to false.

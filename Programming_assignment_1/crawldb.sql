@@ -62,6 +62,7 @@ CREATE INDEX "idx_image_page_id" ON crawldb.image ( page_id );
 CREATE TABLE crawldb.link ( 
 	from_page            integer  NOT NULL,
 	to_page              integer  NOT NULL,
+	is_searched          boolean,
 	CONSTRAINT _0 PRIMARY KEY ( from_page, to_page )
  );
 

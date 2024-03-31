@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Link Visualization</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    .tooltip {
+      position: absolute;
+      background-color: white;
+      border: 1px solid black;
+      padding: 5px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <svg id="visualization" width="1000" height="1000"></svg>
+  <div class="tooltip" id="tooltip"></div>
+  <script>
+
+    let nodes = [{ id: 1, url: "Page 1" }, { id: 2, url: "Page 2" }];
+    let links = [{ source: 1, target: 2 }];
+
+    console.log(nodes)
+    console.log(links)
+
+     // Fetch pages data
+    fetch('http://localhost:3000/api/pages')
+      .then(response => response.json())
+      .then(pages => {
+        nodes = pages
+
+        console.log(nodes)
+        console.log(links)
+
+
+        // Fetch links data
+        fetch('http://localhost:3000/api/links')
+          .then(response => response.json())
+          .then(linksReturned => {
+            //console.log(links); // Check fetched links data
+            links = linksReturned.map(range => ({
+              source: range.from_page,
+              target: range.to_page
+            }));
+
+            console.log(nodes)
+            console.log(links)
+
+            // Create D3 force simulation
+            const simulation = d3.forceSimulation(nodes)
+                .force("link", d3.forceLink(links).id(d => d.id))
+                .force("charge", d3.forceManyBody())
+                .force("center", d3.forceCenter(500, 500));
+
+            // Create SVG elements for links and nodes
+            const svg = d3.select("#visualization");
+            const linkGroup = svg.append("g").attr("class", "links");
+            const nodeGroup = svg.append("g").attr("class", "nodes");
+
+            // Add tooltip
+            const tooltip = d3.select("#tooltip");
+
+            // Update function to redraw visualization
+            function update() {
+                const linkSelection = linkGroup.selectAll("line").data(links);
+                const nodeSelection = nodeGroup.selectAll("circle").data(nodes);
+
+                linkSelection.enter().append("line");
+                nodeSelection.enter().append("circle")
+                    .attr("r", 5)
+                    .on("mouseover", (event, d) => {
+                        tooltip.style("display", "block")
+                            .html(d.url)
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 20) + "px");
+                    })
+                    .on("mouseout", () => {
+                        tooltip.style("display", "none");
+                    })
+                    .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
+
+                linkSelection.exit().remove();
+                nodeSelection.exit().remove();
+
+                linkSelection.attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
+
+                nodeSelection.attr("cx", d => d.x)
+                    .attr("cy", d => d.y);
+            }
+
+            // Function to handle node drag events
+            function dragstarted(event, d) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            }
+
+            function dragged(event, d) {
+                d.fx = event.x;
+                d.fy = event.y;
+            }
+
+            function dragended(event, d) {
+                if (!event.active) simulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+            }
+
+
+            simulation.on("tick", update);
+            update();
+
+          })
+          .catch(error => console.error('Error fetching links:', error));
+
+      })
+      .catch(error => console.error('Error fetching pages:', error));
+
+  </script>
+</body>
+</html>
