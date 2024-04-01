@@ -208,6 +208,15 @@ def getUrlFrontier():
                 conn.commit()
                 return row
 
+def errorCorrectionIsInUse(id):
+    with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+        with lock:
+            with conn.cursor() as cur:
+
+                cur.execute("UPDATE crawldb.page SET in_use = %s WHERE id = %s", (False, id))
+                conn.commit()
+
+
 # For image url-s parse file name from url
 def parse_filename_from_url(url):
     parsed_url = urlparse(url)
@@ -441,6 +450,7 @@ def fetchAndParseUrl(queue, options):
             continue
         except Exception as e:
             print("Error while starting page analysis", e)
+            errorCorrectionIsInUse(urlRow[0])
     print(f"Total URLs visited: {visited_urls_count}")
 
 
