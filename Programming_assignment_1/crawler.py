@@ -309,11 +309,20 @@ def fetchAndParseUrl(queue, options):
         try:
             print(currentUrl, threading.current_thread().name)
             siteId = getSiteId(currentUrl)
-            request = requests.get(currentUrl)
+            request = requests.get(currentUrl, stream=True)
+            request.raise_for_status()
+
+            # Check if the Content-Type is HTML (text/html)
+            if request.headers['Content-Type'].split('/')[0] == "text":
+                html_content = request.text
+                pass
+            else:
+                pass
+
             print(request.headers['content-type'], threading.current_thread().name)
 
             if 'text/html' in request.headers.get('content-type', ''):
-                page_hash = calculate_page_hash(request.text)
+                page_hash = calculate_page_hash(html_content)
                 #print(page_hash)
 
                 if is_duplicate(page_hash):
@@ -438,7 +447,7 @@ def fetchAndParseUrl(queue, options):
                 visited_urls_count += 1
             except Exception as e:
                 accessedTime = datetime.now()
-                updatePageInfo(currentUrl, None, 500, contentType, accessedTime, None, page_hash)
+                updatePageInfo(currentUrl, None, 500, 'OTHER', accessedTime, None, None)
                 print(f"Error visiting {currentUrl}: {e}")
             finally:
                 driver.quit()
