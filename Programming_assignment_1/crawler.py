@@ -20,7 +20,7 @@ from urllib.parse import urlparse, urlunparse
 # WEB_DRIVER_LOCATION = "geckodriver.exe"
 WEB_DRIVER_LOCATION = "./Programming_assignment_1/geckodriver.exe"
 TIMEOUT = 5
-NUM_OF_WORKERS = 8
+NUM_OF_WORKERS = 10
 WEB_PAGE_ADDRESSES = [
     "https://gov.si",
     "https://e-prostor.gov.si",
@@ -156,32 +156,6 @@ def is_duplicate(content_hash):
             except Exception as e:
                 print(f"An error occurred: {e}")
                 return False
-            
-# def insertPageInfo(url, html_content, http_status_code, accessed_time, site_id):
-#     hash_page = calculate_page_hash(html_content) if html_content else None
-#     with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
-#         with conn.cursor() as cur:
-#             if hash_page:
-#                 cur.execute("SELECT id FROM crawldb.page WHERE hash_page = %s", (hash_page,))
-#                 duplicate_page_id = cur.fetchone()
-#                 if duplicate_page_id:
-#                     print(f"Duplicate page detected for URL {url}, linking to existing page id {duplicate_page_id[0]}")
-#                     return
-            
-#             if html_content:  # Only insert if content is available
-#                 cur.execute("INSERT INTO crawldb.page (site_id, url, html_content, http_status_code, accessed_time, page_type_code, in_use, hash_page) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (site_id, url, html_content, http_status_code, accessed_time, 'FRONTIER', False, hash_page))
-#                 conn.commit()
-
-# # Insert page information
-# def insertPageInfo(url, html_content, http_status_code, accessed_time, site_id, hash_page):
-#     with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
-#         with conn.cursor() as cur:
-#             cur.execute("SELECT id FROM crawldb.page WHERE hash_page = %s", (hash_page,))
-#             if cur.fetchone():
-#                 print(f"Duplicate page detected for URL {url}, skipping insertion.")
-#             else:
-#                 cur.execute("INSERT INTO crawldb.page (site_id, url, html_content, http_status_code, accessed_time, page_type_code, in_use, hash_page) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (site_id, url, html_content, http_status_code, accessed_time, 'FRONTIER', False, hash_page))
-#                 conn.commit()
 
 # Insert page information
 def insertPageInfo(url, html_content, http_status_code, accessed_time, site_id, hash_page):
