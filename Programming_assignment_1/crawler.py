@@ -427,7 +427,7 @@ def fetchAndParseUrl(queue, options):
                 visited_urls_count += 1
             except Exception as e:
                 accessedTime = datetime.now()
-                updatePageInfo(currentUrl, None, 500, contentType, accessedTime, None)
+                updatePageInfo(currentUrl, None, 500, contentType, accessedTime, None, page_hash)
                 print(f"Error visiting {currentUrl}: {e}")
             finally:
                 driver.quit()
@@ -439,6 +439,8 @@ def fetchAndParseUrl(queue, options):
                 break
             time.sleep(5)
             continue
+        except Exception as e:
+            print("Error while starting page analysis", e)
     print(f"Total URLs visited: {visited_urls_count}")
 
 
@@ -478,8 +480,8 @@ def insert():
     #insertPageInfo(WEB_PAGE_ADDRESSES[4], None, None, datetime.now(), None)
 
 
-dropTablesStart()
-insert()
+#dropTablesStart()
+#insert()
 
 # If error while working set not finished urls: in_use to false.
 fixIfError()
