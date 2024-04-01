@@ -21,7 +21,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/api/pages', async (req, res) => {
   try {
     const client = await pool.connect();
-    const result = await client.query('SELECT id, url FROM crawldb.page WHERE page_type_code = $1', ['HTML']);
+    const result = await client.query('SELECT id, url FROM crawldb.page WHERE page_type_code = $1 AND http_status_code = $2', ['HTML', 200]);
     const links = result.rows;
     client.release();
     res.json(links);
