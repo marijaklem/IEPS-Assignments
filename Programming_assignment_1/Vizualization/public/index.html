@@ -16,7 +16,7 @@
   </style>
 </head>
 <body>
-  <svg id="visualization" width="1000" height="1000"></svg>
+  <svg id="visualization" width="1800" height="900"></svg>
   <div class="tooltip" id="tooltip"></div>
   <script>
 
@@ -52,8 +52,9 @@
             // Create D3 force simulation
             const simulation = d3.forceSimulation(nodes)
                 .force("link", d3.forceLink(links).id(d => d.id))
-                .force("charge", d3.forceManyBody())
-                .force("center", d3.forceCenter(500, 500));
+                .force("charge", d3.forceManyBody().strength(-15))
+                .force("center", d3.forceCenter(900, 450))
+                .force('collision', d3.forceCollide().radius(1)); // Add collision detection
 
             // Create SVG elements for links and nodes
             const svg = d3.select("#visualization");
@@ -70,7 +71,7 @@
 
                 linkSelection.enter().append("line");
                 nodeSelection.enter().append("circle")
-                    .attr("r", 5)
+                    .attr("r", 4)
                     .on("mouseover", (event, d) => {
                         tooltip.style("display", "block")
                             .html(d.url)
@@ -90,8 +91,8 @@
                     .attr("x2", d => d.target.x)
                     .attr("y2", d => d.target.y);
 
-                nodeSelection.attr("cx", d => d.x)
-                    .attr("cy", d => d.y);
+                nodeSelection.attr("cx", d => d.x = Math.max(5, Math.min(1795, d.x))) // constrain x position within SVG bounds
+                    .attr("cy", d => d.y = Math.max(5, Math.min(895, d.y))); // constrain y position within SVG bounds
             }
 
             // Function to handle node drag events

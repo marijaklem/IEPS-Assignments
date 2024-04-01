@@ -17,12 +17,13 @@ import hashlib
 from urllib.parse import urlparse, urlunparse
 
 # Initial setup
-# WEB_DRIVER_LOCATION = "geckodriver.exe"
-WEB_DRIVER_LOCATION = "./Programming_assignment_1/geckodriver.exe"
+WEB_DRIVER_LOCATION = "geckodriver.exe"
+# WEB_DRIVER_LOCATION = "./Programming_assignment_1/geckodriver.exe"
 TIMEOUT = 5
-NUM_OF_WORKERS = 10
+NUM_OF_WORKERS = 1
 WEB_PAGE_ADDRESSES = [
     "https://gov.si",
+    "https://www.gov.si",
     "https://e-prostor.gov.si",
     "https://evem.gov.si",
     "https://e-uprava.gov.si",
@@ -159,13 +160,13 @@ def is_duplicate(content_hash):
 
 # Insert page information
 def insertPageInfo(url, html_content, http_status_code, accessed_time, site_id, hash_page):
-    try:
+    #try:
         with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
             with conn.cursor() as cur:
                 cur.execute("INSERT INTO crawldb.page (site_id, url, html_content, http_status_code, accessed_time, page_type_code, in_use, hash_page) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (site_id, url, html_content, http_status_code, accessed_time, 'FRONTIER', False, hash_page))
                 conn.commit()
-    except Exception as e:
-        return
+    #except Exception as e:
+    #    return
 
 
 #
@@ -189,10 +190,10 @@ def insertPageDataInfo(src, page_id, data_type_code):
     except Exception as e:
         return
 
-def updatePageInfo(url, html_content, http_status_code, content_type, accessed_time, site_id):
+def updatePageInfo(url, html_content, http_status_code, content_type, accessed_time, site_id, hash_page):
     with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
         with conn.cursor() as cur:
-            cur.execute("UPDATE crawldb.page SET html_content = %s, http_status_code = %s, accessed_time = %s, site_id = %s, page_type_code = %s, in_use = %s WHERE url = %s", (html_content, http_status_code, accessed_time, site_id, content_type, False, url))
+            cur.execute("UPDATE crawldb.page SET html_content = %s, http_status_code = %s, accessed_time = %s, site_id = %s, page_type_code = %s, in_use = %s, hash_page = %s WHERE url = %s", (html_content, http_status_code, accessed_time, site_id, content_type, False, hash_page, url))
             conn.commit()
 
 
@@ -222,6 +223,15 @@ def fixIfError():
             with conn.cursor() as cur:
                 cur.execute("SELECT * FROM crawldb.page WHERE page_type_code = %s AND in_use = %s FETCH FIRST ROW ONLY", ('FRONTIER', True))
                 rows = cur.fetchall()
+
+
+                if rows is not None:
+                    for row in rows:
+                        cur.execute("DELETE FROM crawldb.image WHERE page_id = %s", (row[0],))
+
+                if rows is not None:
+                    for row in rows:
+                        cur.execute("DELETE FROM crawldb.link WHERE from_page = %s", (row[0],))
 
                 if rows is not None:
                     for row in rows:
@@ -284,19 +294,23 @@ def fetchAndParseUrl(queue, options):
             
         if not isAllowedByRobots(currentUrl):
             print(f"URL {currentUrl} disallowed by robots.txt")
+            updatePageInfo(currentUrl, None, 403, 'OTHER', datetime.now(), None, None)
             continue
         
         try:
+            siteId = getSiteId(currentUrl)
             request = requests.get(currentUrl)
             print(request.headers['content-type'])
 
             if 'text/html' in request.headers.get('content-type', ''):
                 page_hash = calculate_page_hash(request.text)
+                print(page_hash)
+
                 if is_duplicate(page_hash):
                     print(f"Duplicate page detected for URL: {currentUrl}")
+                    updatePageInfo(currentUrl, None, None, 'DUPLICATE', datetime.now(), None, page_hash)
                     continue
 
-            siteId = getSiteId(currentUrl)
             fetchAndStoreRobots(currentUrl)
             fetchAndStoreSitemap(currentUrl)
             if 'text/html' in request.headers['content-type']:
@@ -306,7 +320,7 @@ def fetchAndParseUrl(queue, options):
             else:
                 contentType = 'BINARY'
                 print(request.headers['content-type'])
-                updatePageInfo(currentUrl, None, request.status_code, contentType, datetime.now(), siteId)
+                updatePageInfo(currentUrl, None, request.status_code, contentType, datetime.now(), siteId, None)
                 dataType = None
 
                 if 'application/pdf' in request.headers['content-type']:
@@ -322,7 +336,9 @@ def fetchAndParseUrl(queue, options):
                 elif 'image' in request.headers['content-type']:
                     filename = parse_filename_from_url(urlRow[3])
                     content_type = filename.split('.')[-1] if '.' in filename else None
-                    insertImageInfo(urlRow[3], urlRow[0], filename, content_type.lower(), datetime.now())
+                    if content_type is not None:
+                        content_type = content_type.lower()
+                    insertImageInfo(urlRow[3], urlRow[0], filename, content_type, datetime.now())
                     continue
                 else:
                     dataType = 'OTHER'
@@ -330,7 +346,7 @@ def fetchAndParseUrl(queue, options):
                 continue
 
             if request.status_code != 200:
-                updatePageInfo(currentUrl, None, request.status_code, contentType, datetime.now(), siteId)
+                updatePageInfo(currentUrl, None, request.status_code, contentType, datetime.now(), siteId, None)
                 print(f"Request return invalid code", request.status_code)
                 continue
 
@@ -350,7 +366,9 @@ def fetchAndParseUrl(queue, options):
                         try:
                             filename = parse_filename_from_url(src)
                             content_type = filename.split('.')[-1] if '.' in filename else None
-                            insertImageInfo(src, urlRow[0], filename, content_type.lower(), datetime.now())
+                            if content_type is not None:
+                                content_type = content_type.lower()
+                            insertImageInfo(src, urlRow[0], filename, content_type, datetime.now())
                         except Exception as e:
                             print(f"Error inserting url ({src}): {e}", threading.current_thread().name)
 
@@ -387,7 +405,7 @@ def fetchAndParseUrl(queue, options):
                                 absoluteUrl = canonicalizeUrl(absoluteUrl)
                                 try:
                                     print("#INSERT(onclick): ", absoluteUrl, threading.current_thread().name)
-                                    insertPageInfo(absoluteUrl, None, None, datetime.now(), None, page_hash)
+                                    insertPageInfo(absoluteUrl, None, None, datetime.now(), None, None)
                                     toPageId = getPageId(absoluteUrl)
                                     fromPageId = urlRow[0]
                                     updateLink(fromPageId, toPageId, False)
@@ -402,7 +420,9 @@ def fetchAndParseUrl(queue, options):
                 accessedTime = datetime.now()
                 htmlContent = driver.page_source
                 print("#UPDATE", threading.current_thread().name)
-                updatePageInfo(currentUrl, htmlContent, request.status_code, contentType, accessedTime, siteId)
+                print(page_hash)
+                updatePageInfo(currentUrl, htmlContent, request.status_code, contentType, accessedTime, siteId, page_hash)
+                print("UPDATE LINK", urlRow[0], True)
                 updateLinkIsSearched(urlRow[0], True)
 
                 visited_urls_count += 1
@@ -452,10 +472,10 @@ def dropTablesStart():
 
 
 def insert():
-    insertPageInfo(WEB_PAGE_ADDRESSES[0], None, None, datetime.now(), None, "")
-    insertPageInfo(WEB_PAGE_ADDRESSES[1], None, None, datetime.now(), None, "")
-    insertPageInfo(WEB_PAGE_ADDRESSES[2], None, None, datetime.now(), None, "")
-    insertPageInfo(WEB_PAGE_ADDRESSES[3], None, None, datetime.now(), None, "")
+    insertPageInfo(WEB_PAGE_ADDRESSES[0], None, None, datetime.now(), None, None)
+    insertPageInfo(WEB_PAGE_ADDRESSES[1], None, None, datetime.now(), None, None)
+    insertPageInfo(WEB_PAGE_ADDRESSES[2], None, None, datetime.now(), None, None)
+    insertPageInfo(WEB_PAGE_ADDRESSES[3], None, None, datetime.now(), None, None)
     #insertPageInfo(WEB_PAGE_ADDRESSES[4], None, None, datetime.now(), None)
 
 
@@ -463,6 +483,6 @@ dropTablesStart()
 insert()
 
 # If error while working set not finished urls: in_use to false.
-#fixIfError()
+fixIfError()
 
 startCrawling(NUM_OF_WORKERS)
