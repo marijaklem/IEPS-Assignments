@@ -17,13 +17,12 @@ import hashlib
 from urllib.parse import urlparse, urlunparse
 
 # Initial setup
-WEB_DRIVER_LOCATION = "geckodriver.exe"
-# WEB_DRIVER_LOCATION = "./Programming_assignment_1/geckodriver.exe"
+# WEB_DRIVER_LOCATION = "geckodriver.exe"
+WEB_DRIVER_LOCATION = "./Programming_assignment_1/geckodriver.exe"
 TIMEOUT = 5
-NUM_OF_WORKERS = 1
+NUM_OF_WORKERS = 10
 WEB_PAGE_ADDRESSES = [
     "https://gov.si",
-    "https://www.gov.si",
     "https://e-prostor.gov.si",
     "https://evem.gov.si",
     "https://e-uprava.gov.si",
@@ -390,7 +389,7 @@ def fetchAndParseUrl(queue, options):
 
                             try:
                                 #print(f"PAGE HASH {page_hash}")
-                                insertPageInfo(absoluteUrl, None, None,  datetime.now(), None, page_hash)
+                                insertPageInfo(absoluteUrl, None, None,  datetime.now(), None, None)
                                 toPageId = getPageId(absoluteUrl)
                                 fromPageId = urlRow[0]
                                 updateLink(fromPageId, toPageId, False)
@@ -419,10 +418,10 @@ def fetchAndParseUrl(queue, options):
 
                 accessedTime = datetime.now()
                 htmlContent = driver.page_source
-                print("#UPDATE", threading.current_thread().name)
-                print(page_hash)
+                #print("#UPDATE", threading.current_thread().name)
+                #print(page_hash)
                 updatePageInfo(currentUrl, htmlContent, request.status_code, contentType, accessedTime, siteId, page_hash)
-                print("UPDATE LINK", urlRow[0], True)
+                #print("UPDATE LINK", urlRow[0], True)
                 updateLinkIsSearched(urlRow[0], True)
 
                 visited_urls_count += 1
