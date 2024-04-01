@@ -278,7 +278,7 @@ def fetchAndParseUrl(queue, options):
         if urlRow is None:
             print("NO MORE AVAILABLE URLS", threading.current_thread().name)
             fail_retries += 1
-            if fail_retries > 5:
+            if fail_retries > 10:
                 print("CLOSED THREAD!", threading.current_thread().name)
                 break
 
