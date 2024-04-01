@@ -14,6 +14,7 @@ import psycopg2
 import requests
 import re
 import hashlib
+from urllib.parse import urlparse, urlunparse
 
 # Initial setup
 # WEB_DRIVER_LOCATION = "geckodriver.exe"
@@ -46,6 +47,18 @@ visited_urls_count = 0
 
 lock = threading.Lock()
 
+
+def canonicalizeUrl(url):
+    parsed_url = urlparse(url)
+    canonicalized_url = urlunparse((
+        parsed_url.scheme,
+        parsed_url.netloc,
+        parsed_url.path,
+        '',  # query
+        '',  # fragment
+        ''
+    ))
+    return canonicalized_url
 
 # Robots.txt
 def isAllowedByRobots(url, userAgent="*"):
@@ -376,9 +389,12 @@ def fetchAndParseUrl(queue, options):
                 for link in pageLinks:
                     try:
                         href = link.get_attribute("href")
+                        if href and href.startswith("http"):
+                            href = canonicalizeUrl(href)
                         onClick = link.get_attribute("onclick")
                         if href and href.startswith("http"):
                             absoluteUrl = urljoin(currentUrl, href)
+                            absoluteUrl = canonicalizeUrl(absoluteUrl)
 
                             try:
                                 #print(f"PAGE HASH {page_hash}")
@@ -394,6 +410,7 @@ def fetchAndParseUrl(queue, options):
                             matches = re.findall(r"(?:window\.location\s*=\s*|document\.location\s*=\s*)['\"](.*?)['\"]", onClick)
                             for match in matches:
                                 absoluteUrl = urljoin(currentUrl, match)
+                                absoluteUrl = canonicalizeUrl(absoluteUrl)
                                 try:
                                     print("#INSERT(onclick): ", absoluteUrl, threading.current_thread().name)
                                     insertPageInfo(absoluteUrl, None, None, datetime.now(), None, page_hash)
