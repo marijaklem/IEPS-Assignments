@@ -229,7 +229,7 @@ def fixIfError():
     with psycopg2.connect(database="postgres", user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
         with lock:
             with conn.cursor() as cur:
-                cur.execute("SELECT * FROM crawldb.page WHERE page_type_code = %s AND in_use = %s FETCH FIRST ROW ONLY", ('FRONTIER', True))
+                cur.execute("SELECT * FROM crawldb.page WHERE page_type_code = %s AND in_use = %s", ('FRONTIER', True))
                 rows = cur.fetchall()
 
 
@@ -276,6 +276,7 @@ htmlPagesLock = Lock()
 def fetchAndParseUrl(queue, options):
     global visited_urls_count
     fail_retries = 0
+    error_retry = 0
     global htmlPages
 
     while True: #not queue.empty():
@@ -306,13 +307,14 @@ def fetchAndParseUrl(queue, options):
             continue
         
         try:
+            print(currentUrl, threading.current_thread().name)
             siteId = getSiteId(currentUrl)
             request = requests.get(currentUrl)
-            print(request.headers['content-type'])
+            print(request.headers['content-type'], threading.current_thread().name)
 
             if 'text/html' in request.headers.get('content-type', ''):
                 page_hash = calculate_page_hash(request.text)
-                print(page_hash)
+                #print(page_hash)
 
                 if is_duplicate(page_hash):
                     print(f"Duplicate page detected for URL: {currentUrl}")
@@ -440,6 +442,8 @@ def fetchAndParseUrl(queue, options):
                 print(f"Error visiting {currentUrl}: {e}")
             finally:
                 driver.quit()
+
+            error_retry = 0
         except requests.Timeout as e:
             print(f"Timeout occurred while fetching URL: {currentUrl}, Retrying...")
             fail_retries += 1
@@ -450,7 +454,14 @@ def fetchAndParseUrl(queue, options):
             continue
         except Exception as e:
             print("Error while starting page analysis", e)
+            error_retry += 1
+            time.sleep(5)
             errorCorrectionIsInUse(urlRow[0])
+
+            if error_retry > 5:
+                print("Removed persistent error!", currentUrl)
+                updatePageInfo(currentUrl, None, None, 'FRONTIER', datetime.now(), None, None)
+
     print(f"Total URLs visited: {visited_urls_count}")
 
 
@@ -458,6 +469,7 @@ def startCrawling(numOfWorkers):
     threads = []
 
     for i in range(numOfWorkers):
+        time.sleep(5)
         thread = Thread(target=fetchAndParseUrl, args=(
             urlsToVisit, firefox_options))
         threads.append(thread)
