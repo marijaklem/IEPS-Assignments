@@ -16,113 +16,278 @@
   </style>
 </head>
 <body>
-  <svg id="visualization" width="1800" height="900"></svg>
+  <div id="checkboxes" style="display: flex"></div>
+  <svg id="visualization" width="15000" height="15000"></svg>
   <div class="tooltip" id="tooltip"></div>
   <script>
+    let numConnectionsToDisplay = 1;
+    let simulation; // Declare simulation globally
 
-    let nodes = [{ id: 1, url: "Page 1" }, { id: 2, url: "Page 2" }];
-    let links = [{ source: 1, target: 2 }];
+    let nodes = [{ id: 1, url: "Page 1" }, { id: 2, url: "Page 2" }, { id: 3, url: "Page 3" }, { id: 4, url: "Page 4" }, { id: 5, url: "Page 5" }, { id: 6, url: "Page 6" }, { id: 7, url: "Page 7" }, {id: 8, url: "Page 8"} ];
+    let links = [{ source: 1, target: 2 }, { source: 1, target: 3 }, { source: 2, target: 4 }, { source: 4, target: 5 }, { source: 4, target: 6 }, { source: 7, target: 8}];
 
     console.log(nodes)
     console.log(links)
 
-     // Fetch pages data
-    fetch('http://localhost:3000/api/pages')
-      .then(response => response.json())
-      .then(pages => {
-        nodes = pages
+    let keydownListener = null; // Reference to the keydown event listener
 
-        console.log(nodes)
-        console.log(links)
+    // Function to handle keydown events
+    function handleKeyDown(event) {
+        var keyCode = event.keyCode || event.which;
 
+        console.log(keyCode);
+        if (keyCode >= 48 && keyCode <= 57) {
+            numConnectionsToDisplay = keyCode - 48;
 
-        // Fetch links data
-        fetch('http://localhost:3000/api/links')
-          .then(response => response.json())
-          .then(linksReturned => {
-            //console.log(links); // Check fetched links data
-            links = linksReturned.map(range => ({
-              source: range.from_page,
-              target: range.to_page
-            }));
-
-            console.log(nodes)
-            console.log(links)
-
-            // Create D3 force simulation
-            const simulation = d3.forceSimulation(nodes)
-                .force("link", d3.forceLink(links).id(d => d.id))
-                .force("charge", d3.forceManyBody().strength(-15))
-                .force("center", d3.forceCenter(900, 450))
-                .force('collision', d3.forceCollide().radius(1)); // Add collision detection
-
-            // Create SVG elements for links and nodes
-            const svg = d3.select("#visualization");
-            const linkGroup = svg.append("g").attr("class", "links");
-            const nodeGroup = svg.append("g").attr("class", "nodes");
-
-            // Add tooltip
-            const tooltip = d3.select("#tooltip");
-
-            // Update function to redraw visualization
-            function update() {
-                const linkSelection = linkGroup.selectAll("line").data(links);
-                const nodeSelection = nodeGroup.selectAll("circle").data(nodes);
-
-                linkSelection.enter().append("line");
-                nodeSelection.enter().append("circle")
-                    .attr("r", 4)
-                    .on("mouseover", (event, d) => {
-                        tooltip.style("display", "block")
-                            .html(d.url)
-                            .style("left", (event.pageX + 10) + "px")
-                            .style("top", (event.pageY - 20) + "px");
-                    })
-                    .on("mouseout", () => {
-                        tooltip.style("display", "none");
-                    })
-                    .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
-
-                linkSelection.exit().remove();
-                nodeSelection.exit().remove();
-
-                linkSelection.attr("x1", d => d.source.x)
-                    .attr("y1", d => d.source.y)
-                    .attr("x2", d => d.target.x)
-                    .attr("y2", d => d.target.y);
-
-                nodeSelection.attr("cx", d => d.x = Math.max(5, Math.min(1795, d.x))) // constrain x position within SVG bounds
-                    .attr("cy", d => d.y = Math.max(5, Math.min(895, d.y))); // constrain y position within SVG bounds
+            // Stop the existing simulation
+            if (simulation) {
+                simulation.stop();
             }
 
-            // Function to handle node drag events
-            function dragstarted(event, d) {
-                if (!event.active) simulation.alphaTarget(0.3).restart();
-                d.fx = d.x;
-                d.fy = d.y;
-            }
+            start();
+        }
+    }
 
-            function dragged(event, d) {
-                d.fx = event.x;
-                d.fy = event.y;
-            }
+    function findById(array, id) {
+        return array.find(item => item.id === id);
+    }
 
-            function dragended(event, d) {
-                if (!event.active) simulation.alphaTarget(0);
-                d.fx = null;
-                d.fy = null;
-            }
+    function generateCheckboxes(nodes) {
+      const checkboxesDiv = document.getElementById('checkboxes');
+
+      const checkboxes = document.querySelectorAll('#checkboxes input[type="checkbox"]');
+      console.log(checkboxesDiv)
+      const checkboxValues = [];
+
+      checkboxes.forEach(checkbox => {
+          checkboxValues.push({id: parseInt(checkbox.value), checked: checkbox.checked});
+      });
+      console.log(checkboxValues)
+      checkboxesDiv.innerHTML = ''; // Clear existing checkboxes
+
+      nodes.forEach(node => {
+        const prevCheckBox = checkboxValues.find(val => val.id === node.id)
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `seed_${node.id}`;
+        checkbox.value = node.id;
+        checkbox.checked = prevCheckBox ? prevCheckBox.checked : false;
+        checkbox.addEventListener('change', () => {
+          update(); // Update visualization when checkboxes are changed
+        });
+
+        const label = document.createElement('label');
+        label.htmlFor = `seed_${node.id}`;
+        label.textContent = node.url;
+
+        checkboxesDiv.appendChild(checkbox);
+        checkboxesDiv.appendChild(label);
+        checkboxesDiv.appendChild(document.createElement('br'));
+      });
+    }
+
+    function findNodeById(id) {
+      return nodes.find(node => node.id === id);
+    }
+
+    function start() {
+
+        d3.selectAll("svg > *").remove();
+
+        // Reset simulation
+        if (simulation) {
+            simulation.stop();
+        }
+
+      // Fetch pages data
+      fetch('http://localhost:3002/api/pages')
+        .then(response => response.json())
+        .then(pages => {
+          nodes = pages
+
+          console.log(nodes)
+          console.log(links)
 
 
-            simulation.on("tick", update);
-            update();
+          // Fetch links data
+          fetch('http://localhost:3002/api/links')
+            .then(response => response.json())
+            .then(linksReturned => {
+              //console.log(links); // Check fetched links data
+              links = linksReturned.map(range => ({
+                source: range.from_page,
+                target: range.to_page
+              }));
 
-          })
-          .catch(error => console.error('Error fetching links:', error));
+              function findSeedIds(nodes, links) {
+                let seedIds = [];
 
-      })
-      .catch(error => console.error('Error fetching pages:', error));
+                nodes.forEach(node => {
+                  if (!links.some(link => link.target === node.id)) {
+                    seedIds.push(node.id);
+                  }
+                });
 
+                return seedIds;
+              }
+
+              let seedIds = findSeedIds(nodes, links);
+              console.log("SEED")
+              let seedNodes = []
+              for (const seed of seedIds) {
+                seedNodes.push(findNodeById(seed))
+              }
+
+              generateCheckboxes(seedNodes)
+
+              function getNodesAndLinks(seedId, connections) {
+                let newNodes = [];
+                let newLinks = [];
+                let visited = new Set();
+
+                // Add seed node to newNodes
+                newNodes.push(nodes.find(node => node.id === seedId));
+
+                // Function to recursively find links
+                function findLinks(nodeId, depth) {
+                  if (depth === connections) return;
+                  links.forEach(link => {
+                    if (link.source === nodeId && !visited.has(link.target)) {
+                      visited.add(link.target);
+                      newLinks.push(link);
+                      newNodes.push(nodes.find(node => node.id === link.target));
+                      findLinks(link.target, depth + 1);
+                    }
+                  });
+                }
+
+                // Start recursive search
+                findLinks(seedId, 0);
+
+                return { nodes: newNodes, links: newLinks };
+              }
+
+              selectedNodes = []
+              selectedLinks = []
+              console.log("SELECTED NODES")
+              for (const seed of seedIds) {
+                let checkBox = document.getElementById('seed_'+seed);
+                console.log(checkBox.checked)
+                if (checkBox.checked) {
+                  let { nodes: newNodes, links: newLinks } = getNodesAndLinks(seed, numConnectionsToDisplay);
+
+                  selectedNodes.push(...newNodes)
+                  selectedLinks.push(...newLinks)
+                  console.log(selectedNodes)
+                  console.log(selectedLinks)
+                }
+              }
+              console.log(selectedNodes)
+              console.log(selectedLinks)
+              nodes = selectedNodes
+              links = selectedLinks
+
+              console.log(nodes)
+              console.log(links)
+
+              // Create D3 force simulation
+              simulation = d3.forceSimulation(nodes)
+                  .force("link", d3.forceLink(links).id(d => d.id))
+                  .force("charge", d3.forceManyBody().strength(-15))
+                  .force("center", d3.forceCenter(7500, 7500))
+                  .force('collision', d3.forceCollide().radius(1)); // Add collision detection
+
+              // Create SVG elements for links and nodes
+              const svg = d3.select("#visualization");
+              const linkGroup = svg.append("g").attr("class", "links");
+              const nodeGroup = svg.append("g").attr("class", "nodes");
+              const connectionGroup = svg.append("g").attr("class", "connections"); // New group for connections
+
+              // Add tooltip
+              const tooltip = d3.select("#tooltip");
+
+              // Update function to redraw visualization
+              function update() {
+                  // Remove existing elements
+
+                  const linkSelection = linkGroup.selectAll("line").data(links);
+                  const nodeSelection = nodeGroup.selectAll("circle").data(nodes);
+                  const connectionSelection = connectionGroup.selectAll("line").data(links); // Selection for connections
+
+                  linkSelection.enter().append("line");
+                  nodeSelection.enter().append("circle")
+                      .attr("r", 4)
+                      .on("mouseover", (event, d) => {
+                          tooltip.style("display", "block")
+                              .html(d.url)
+                              .style("left", (event.pageX + 10) + "px")
+                              .style("top", (event.pageY - 20) + "px");
+                      })
+                      .on("mouseout", () => {
+                          tooltip.style("display", "none");
+                      })
+                      .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
+
+                  // Append connections
+                  connectionSelection.enter().append("line")
+                      .attr("class", "connection");
+
+                  linkSelection.exit().remove();
+                  nodeSelection.exit().remove();
+                  connectionSelection.exit().remove();
+
+                  linkSelection.attr("x1", d => d.source.x)
+                      .attr("y1", d => d.source.y)
+                      .attr("x2", d => d.target.x)
+                      .attr("y2", d => d.target.y);
+
+                  nodeSelection.attr("cx", d => d.x = Math.max(5, Math.min(14995, d.x))) // constrain x position within SVG bounds
+                      .attr("cy", d => d.y = Math.max(5, Math.min(14995, d.y))); // constrain y position within SVG bounds
+
+                  // Update connections
+                  connectionSelection
+                      .attr("x1", d => d.source.x)
+                      .attr("y1", d => d.source.y)
+                      .attr("x2", d => d.target.x)
+                      .attr("y2", d => d.target.y)
+                      .style("stroke", "lightgray") // Style connections
+                      .style("stroke-width", 1); // Adjust thickness of connections
+              }
+
+              // Function to handle node drag events
+              function dragstarted(event, d) {
+                  if (!event.active) simulation.alphaTarget(0.3).restart();
+                  d.fx = d.x;
+                  d.fy = d.y;
+              }
+
+              function dragged(event, d) {
+                  d.fx = event.x;
+                  d.fy = event.y;
+              }
+
+              function dragended(event, d) {
+                  if (!event.active) simulation.alphaTarget(0);
+                  d.fx = null;
+                  d.fy = null;
+              }
+
+              if (!keydownListener) {
+                  keydownListener = handleKeyDown;
+                  document.addEventListener("keydown", keydownListener);
+              }
+
+
+              simulation.on("tick", update);
+              update();
+
+            })
+            .catch(error => console.error('Error fetching links:', error));
+
+        })
+        .catch(error => console.error('Error fetching pages:', error));
+    }
+    start()
   </script>
 </body>
 </html>
