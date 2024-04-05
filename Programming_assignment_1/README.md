@@ -45,9 +45,6 @@ Install requirements: `pip install -r requirements.txt`
     5. Na levi se pod Databases pojavi "postgres". V Schemas -> crawldb dvojni klik na Tables (izbereš levo opcijo, mislim da piše da ti odpre object). Lahko vidiš vsa polja. Na "References" se ti izriše še povezava med tabelami.
     6. Podatke v posamezni tabeli lahk vidiš, če izbereš tabelo (npr. Tables -> site) in na vrhu izbereš "Data"
 
-4. Testiranje povezave
-    Zaženeš datoteko [testBaze.py](https://github.com/kristofzupan/IEPS-Assignments/tree/main/Programming_assignment_1/testBaze.py). V tabelo site, se naj bi dodala ena vrstica.
-
 ## Firefox
 
 Crawler narejen za Firefox.
@@ -63,5 +60,5 @@ Primer: `firefox_options.binary_location = r'C:\Program Files\Mozilla Firefox\fi
 ## Dostop do podatkovne baze s shranjenimi podatki
 
 Zaradi velikosti podatkovne baze smo jo shranili v dveh različicah.
-Do celotne podatkovne baze lahko dostopate na povezavi.
-Obstaja tudi zmanjšana verzija podatkovne baze, ki ima v tabeli 'page' vsebino 'html_content' omejeno na 1000 znakov. Za dostop do nje po kloniranju repozitorija v ukaznem pozivu poženite ukaz: git lfs pull
+    Do celotne podatkovne baze lahko dostopate na povezavi v db.txt.
+    Obstaja tudi zmanjšana verzija podatkovne baze, ki ima v tabeli 'page' vsebino 'html_content' omejeno na 1000 znakov. Za dostop do nje po kloniranju repozitorija v ukaznem pozivu poženite ukaz: git lfs pull
