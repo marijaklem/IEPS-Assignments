@@ -40,3 +40,10 @@ Crawler narejen za Firefox.
 V 25. vrstici datoteke [crawler.py](https://github.com/kristofzupan/IEPS-Assignments/tree/main/Programming_assignment_1/crawler.py) je
 potrebno spremeniti pot do "Firefox.exe" datoteke. Ta se mora ujemati absolutni poti do lokacije datoteke "Firefox.exe" na vašem računalniku.
 Primer: `firefox_options.binary_location = r'C:\Program Files\Mozilla Firefox\firefox.exe'`
+
+
+## Dostop do podatkovne baze s shranjenimi podatki
+
+Zaradi velikosti podatkovne baze smo jo shranili v dveh različicah.
+Do celotne podatkovne baze lahko dostopate na povezavi.
+Obstaja tudi zmanjšana verzija podatkovne baze, ki ima v tabeli 'page' vsebino 'html_content' omejeno na 1000 znakov. Za dostop do nje po kloniranju repozitorija v ukaznem pozivu poženite ukaz: git lfs pull
