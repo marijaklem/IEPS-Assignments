@@ -17,8 +17,8 @@ import hashlib
 from urllib.parse import urlparse, urlunparse
 
 # Initial setup
-# WEB_DRIVER_LOCATION = "geckodriver.exe"
-WEB_DRIVER_LOCATION = "./Programming_assignment_1/geckodriver.exe"
+WEB_DRIVER_LOCATION = "geckodriver.exe"
+# WEB_DRIVER_LOCATION = "./Programming_assignment_1/geckodriver.exe"
 TIMEOUT = 5
 NUM_OF_WORKERS = 10
 WEB_PAGE_ADDRESSES = [
@@ -105,7 +105,7 @@ def fetchAndStoreSitemap(url):
 # Update Site
 def updateSiteRecord(url, **kwargs):
     domain = urlparse(url).netloc
-    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="postgres", host="localhost", port="5432") as conn:
         with conn.cursor() as cur:
             set_clause = ", ".join([f"{column} = %s" for column in kwargs.keys()])
             values = list(kwargs.values())
@@ -117,7 +117,7 @@ def updateSiteRecord(url, **kwargs):
 # Get siteId
 def getSiteId(url):
     domain = urlparse(url).netloc
-    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="postgres", host="localhost", port="5432") as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT id FROM crawldb.site WHERE domain = %s", (domain,))
             row = cur.fetchone()
@@ -132,7 +132,7 @@ def getSiteId(url):
 
 # Get pageId
 def getPageId(url):
-    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="postgres", host="localhost", port="5432") as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT id FROM crawldb.page WHERE url = %s", (url,))
             row = cur.fetchone()
@@ -147,7 +147,7 @@ def calculate_page_hash(content):
     return hashlib.sha256(content.encode('utf-8')).hexdigest()
 
 def is_duplicate(content_hash):
-    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="postgres", host="localhost", port="5432") as conn:
         with conn.cursor() as cur:
             query = "SELECT COUNT(*) FROM crawldb.page WHERE hash_page = %s"
             try:
@@ -161,7 +161,7 @@ def is_duplicate(content_hash):
 # Insert page information
 def insertPageInfo(url, html_content, http_status_code, accessed_time, site_id, hash_page):
     #try:
-        with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+        with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="postgres", host="localhost", port="5432") as conn:
             with conn.cursor() as cur:
                 cur.execute("INSERT INTO crawldb.page (site_id, url, html_content, http_status_code, accessed_time, page_type_code, in_use, hash_page) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", (site_id, url, html_content, http_status_code, accessed_time, 'FRONTIER', False, hash_page))
                 conn.commit()
@@ -172,7 +172,7 @@ def insertPageInfo(url, html_content, http_status_code, accessed_time, site_id, 
 #
 def insertImageInfo(src, page_id, filename, content_type, accessed_time):
     try:
-        with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+        with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="postgres", host="localhost", port="5432") as conn:
             with conn.cursor() as cur:
                 cur.execute("INSERT INTO crawldb.image (page_id, filename, content_type, data, accessed_time) VALUES (%s, %s, %s, %s, %s)", (page_id, filename, content_type, src, accessed_time))
                 conn.commit()
@@ -183,7 +183,7 @@ def insertImageInfo(src, page_id, filename, content_type, accessed_time):
 def insertPageDataInfo(src, page_id, data_type_code):
     print("Inser page data", src, page_id, data_type_code)
     try:
-        with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+        with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="postgres", host="localhost", port="5432") as conn:
             with conn.cursor() as cur:
                 cur.execute("INSERT INTO crawldb.page_data (page_id, data_type_code, data) VALUES (%s, %s, %s)", (page_id, data_type_code, src))
                 conn.commit()
@@ -191,7 +191,7 @@ def insertPageDataInfo(src, page_id, data_type_code):
         return
 
 def updatePageInfo(url, html_content, http_status_code, content_type, accessed_time, site_id, hash_page):
-    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="postgres", host="localhost", port="5432") as conn:
         with conn.cursor() as cur:
             cur.execute("UPDATE crawldb.page SET html_content = %s, http_status_code = %s, accessed_time = %s, site_id = %s, page_type_code = %s, in_use = %s, hash_page = %s WHERE url = %s", (html_content, http_status_code, accessed_time, site_id, content_type, False, hash_page, url))
             conn.commit()
@@ -199,7 +199,7 @@ def updatePageInfo(url, html_content, http_status_code, content_type, accessed_t
 
 # Get first url in frontier
 def getUrlFrontier():
-    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="postgres", host="localhost", port="5432") as conn:
         with lock:
             with conn.cursor() as cur:
                 cur.execute("SELECT * FROM crawldb.page WHERE page_type_code = %s AND in_use = %s ORDER BY accessed_time ASC FETCH FIRST ROW ONLY", ('FRONTIER', False))
@@ -210,7 +210,7 @@ def getUrlFrontier():
                 return row
 
 def errorCorrectionIsInUse(id):
-    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="postgres", host="localhost", port="5432") as conn:
         with lock:
             with conn.cursor() as cur:
 
@@ -227,7 +227,7 @@ def parse_filename_from_url(url):
 
 # Fix db when urls in_use True but is not finnished
 def fixIfError():
-    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="postgres", host="localhost", port="5432") as conn:
         with lock:
             with conn.cursor() as cur:
                 cur.execute("SELECT * FROM crawldb.page WHERE page_type_code = %s AND in_use = %s", ('FRONTIER', True))
@@ -245,7 +245,7 @@ def fixIfError():
 
 # Insert to link table
 def updateLink(from_page, to_page, is_searched):
-    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="postgres", host="localhost", port="5432") as conn:
         with lock:
             with conn.cursor() as cur:
                 try:
@@ -256,7 +256,7 @@ def updateLink(from_page, to_page, is_searched):
                     conn.commit()
 
 def updateLinkIsSearched(to_page, is_searched):
-    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="postgres", host="localhost", port="5432") as conn:
         with lock:
             with conn.cursor() as cur:
                 try:
@@ -293,10 +293,6 @@ def fetchAndParseUrl(queue, options):
             continue
 
         currentUrl = urlRow[3]
-        #with visitedUrlsLock:
-        #    if currentUrl in visitedUrls:
-        #        continue
-        #    visitedUrls.add(currentUrl)
             
         if not isAllowedByRobots(currentUrl):
             print(f"URL {currentUrl} disallowed by robots.txt")
@@ -320,7 +316,6 @@ def fetchAndParseUrl(queue, options):
 
             if 'text/html' in request.headers.get('content-type', ''):
                 page_hash = calculate_page_hash(html_content)
-                #print(page_hash)
 
                 if is_duplicate(page_hash):
                     print(f"Duplicate page detected for URL: {currentUrl}")
@@ -405,7 +400,6 @@ def fetchAndParseUrl(queue, options):
                             absoluteUrl = canonicalizeUrl(absoluteUrl)
 
                             try:
-                                #print(f"PAGE HASH {page_hash}")
                                 insertPageInfo(absoluteUrl, None, None,  datetime.now(), None, None)
                                 toPageId = getPageId(absoluteUrl)
                                 fromPageId = urlRow[0]
@@ -435,10 +429,7 @@ def fetchAndParseUrl(queue, options):
 
                 accessedTime = datetime.now()
                 htmlContent = driver.page_source
-                #print("#UPDATE", threading.current_thread().name)
-                #print(page_hash)
                 updatePageInfo(currentUrl, htmlContent, request.status_code, contentType, accessedTime, siteId, page_hash)
-                #print("UPDATE LINK", urlRow[0], True)
                 updateLinkIsSearched(urlRow[0], True)
 
                 visited_urls_count += 1
@@ -486,13 +477,13 @@ def startCrawling(numOfWorkers):
 
 
 def drop_rows_from_table(table_name):
-    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="postgres", host="localhost", port="5432") as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM {}".format(table_name))
             conn.commit()
 
 def getLinksFromPage(id):
-    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="postgres", host="localhost", port="5432") as conn:
         with lock:
             with conn.cursor() as cur:
                 cur.execute("SELECT * FROM crawldb.link WHERE from_page = %s", (id,))
@@ -500,7 +491,7 @@ def getLinksFromPage(id):
                 return links
 
 def getLinksToPage(id):
-    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="postgres", host="localhost", port="5432") as conn:
         with lock:
             with conn.cursor() as cur:
                 cur.execute("SELECT * FROM crawldb.link WHERE to_page = %s", (id,))
@@ -508,7 +499,7 @@ def getLinksToPage(id):
                 return result
 
 def insertFixLink(from_page, to_page):
-    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
+    with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="postgres", host="localhost", port="5432") as conn:
         with lock:
             with conn.cursor() as cur:
 
@@ -520,7 +511,6 @@ def insertFixLink(from_page, to_page):
 def fixLinks(queue, options, full_size):
     while not queue.empty():
         row = queue.get()
-        #print(row)
 
         links = getLinksFromPage(row[0])
 
@@ -543,11 +533,7 @@ def fixLinks(queue, options, full_size):
                         onClick = link.get_attribute("onclick")
                         if href and href.startswith("http"):
                             absoluteUrl = urljoin(currentUrl, href)
-                            #toPageId = getPageId(absoluteUrl)
-                            #print(toPageId)
                             absoluteUrl = canonicalizeUrl(absoluteUrl)
-                            #toPageId2 = getPageId(absoluteUrl)
-                            #print("TOOO IDDD:", toPageId, toPageId2)
 
                             try:
                                 toPageId = getPageId(absoluteUrl)
@@ -555,13 +541,11 @@ def fixLinks(queue, options, full_size):
                                 result = getLinksToPage(toPageId)
                                 if result:
                                     continue
-                                    #print("IDDD:",fromPageId,toPageId, "already exists: ", True)
                                 else:
                                     if toPageId is not None:
 
                                         print("Insert IDDD:",fromPageId,toPageId, "already exists: ", False, "For page:", currentUrl )
                                         insertFixLink(fromPageId, toPageId)
-                                #updateLink(fromPageId, toPageId, False)
                             except Exception as e:
                                 continue
                     except Exception as e:
@@ -574,8 +558,6 @@ def fixLinks(queue, options, full_size):
             finally:
                 print("Quit", threading.current_thread().name)
                 driver.quit()
-        #else:
-            #print("link already done")
 
 
 
@@ -592,37 +574,12 @@ def insert():
     insertPageInfo(WEB_PAGE_ADDRESSES[1], None, None, datetime.now(), None, None)
     insertPageInfo(WEB_PAGE_ADDRESSES[2], None, None, datetime.now(), None, None)
     insertPageInfo(WEB_PAGE_ADDRESSES[3], None, None, datetime.now(), None, None)
-    #insertPageInfo(WEB_PAGE_ADDRESSES[4], None, None, datetime.now(), None)
 
 
 #dropTablesStart()
 #insert()
 
 # If error while working set not finished urls: in_use to false.
-#fixIfError()
+fixIfError()
 
-#startCrawling(NUM_OF_WORKERS)
-checkThisUrls = Queue()
-with psycopg2.connect(database=DATABASE_NAME, user="postgres", password="SMRPO_skG", host="localhost", port="5432") as conn:
-    with conn.cursor() as cur:
-        cur.execute("SELECT id, site_id, url, http_status_code, accessed_time, hash_page FROM crawldb.page WHERE page_type_code = %s AND http_status_code = %s ORDER BY RANDOM()", ('HTML', 200))
-        rows = cur.fetchall()
-        for row in rows:
-            checkThisUrls.put(row)
-
-full_size = checkThisUrls.qsize()
-print(full_size)
-def startFixThreads(numOfWorkers):
-    threads = []
-
-    for i in range(numOfWorkers):
-        thread = Thread(target=fixLinks, args=(
-            checkThisUrls, firefox_options, full_size))
-        threads.append(thread)
-        thread.start()
-        time.sleep(5)
-
-    for thread in threads:
-        thread.join()
-
-startFixThreads(NUM_OF_WORKERS)
+startCrawling(NUM_OF_WORKERS)
