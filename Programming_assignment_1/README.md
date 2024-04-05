@@ -63,5 +63,5 @@ Primer: `firefox_options.binary_location = r'C:\Program Files\Mozilla Firefox\fi
 ## Dostop do podatkovne baze s shranjenimi podatki
 
 Zaradi velikosti podatkovne baze smo jo shranili v dveh različicah.
-Do celotne podatkovne baze lahko dostopate na povezavi.
-Obstaja tudi zmanjšana verzija podatkovne baze, ki ima v tabeli 'page' vsebino 'html_content' omejeno na 1000 znakov. Za dostop do nje po kloniranju repozitorija v ukaznem pozivu poženite ukaz: git lfs pull
+    Do celotne podatkovne baze lahko dostopate na povezavi v db.txt.
+    Obstaja tudi zmanjšana verzija podatkovne baze, ki ima v tabeli 'page' vsebino 'html_content' omejeno na 1000 znakov. Za dostop do nje po kloniranju repozitorija v ukaznem pozivu poženite ukaz: git lfs pull
