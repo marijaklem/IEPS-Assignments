@@ -2,9 +2,24 @@
 
 ## Startup
 
-Install Selenium: `pip install selenium` /
-Install psycopg2: `pip install psycopg2` /
+Install python 3.12.0 <br>
+Install venv `pip install virtualenv` <br>
+Install Selenium: `pip install selenium` <br>
+Install psycopg2: `pip install psycopg2` <br>
 Install requests: `pip install requests`
+
+First start:
+`py -m venv .venv`
+
+Activate cmd or PS to virtual env:
+- In cmd.exe
+`.venv\Scripts\activate.bat`
+- In PowerShell
+`.venv\Scripts\Activate.ps1`
+
+Check if version in .venv is 3.12 with `py --version`
+
+Install requirements: `pip install -r requirements.txt`
 
 ## Instalacija lokalne baze
 
@@ -41,6 +56,9 @@ V 25. vrstici datoteke [crawler.py](https://github.com/kristofzupan/IEPS-Assignm
 potrebno spremeniti pot do "Firefox.exe" datoteke. Ta se mora ujemati absolutni poti do lokacije datoteke "Firefox.exe" na vašem računalniku.
 Primer: `firefox_options.binary_location = r'C:\Program Files\Mozilla Firefox\firefox.exe'`
 
+## Running
+
+`py Programming_assignment_1/crawler.py`
 
 ## Dostop do podatkovne baze s shranjenimi podatki
 
